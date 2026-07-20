@@ -8,16 +8,28 @@ using UnityEngine;
 /// </summary>
 public static class BuildScript
 {
-    private const string OutputPath = "Build/Windows/UnityTest.exe";
+    private const string WindowsOutputPath = "Build/Windows/UnityTest.exe";
+    private const string QuestOutputPath = "Build/Android/UnityTest.apk";
 
     [MenuItem("Tools/Build/Windows x64")]
     public static void BuildWindows()
     {
+        Build(WindowsOutputPath, BuildTarget.StandaloneWindows64);
+    }
+
+    [MenuItem("Tools/Build/Quest APK")]
+    public static void BuildQuest()
+    {
+        Build(QuestOutputPath, BuildTarget.Android);
+    }
+
+    private static void Build(string outputPath, BuildTarget target)
+    {
         var options = new BuildPlayerOptions
         {
             scenes = new[] { SceneSetup.ScenePath },
-            locationPathName = OutputPath,
-            target = BuildTarget.StandaloneWindows64,
+            locationPathName = outputPath,
+            target = target,
             options = BuildOptions.None
         };
 
