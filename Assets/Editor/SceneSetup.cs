@@ -242,11 +242,21 @@ public static class SceneSetup
         Material ghostInvalid = CreateTransparentMaterial(
             "Assets/Materials/GhostInvalid.mat", new Color(1f, 0.32f, 0.32f, 0.45f));
 
+        Material guideMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/GuideLine.mat");
+        if (guideMat == null)
+        {
+            guideMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            AssetDatabase.CreateAsset(guideMat, "Assets/Materials/GuideLine.mat");
+        }
+        guideMat.color = new Color(0.25f, 0.9f, 1f, 1f);
+        EditorUtility.SetDirty(guideMat);
+
         var controllerGo = new GameObject("GameController");
         var drag = controllerGo.AddComponent<DragPlacementController>();
         var so = new SerializedObject(drag);
         so.FindProperty("ghostValidMaterial").objectReferenceValue = ghostValid;
         so.FindProperty("ghostInvalidMaterial").objectReferenceValue = ghostInvalid;
+        so.FindProperty("guideMaterial").objectReferenceValue = guideMat;
         so.ApplyModifiedPropertiesWithoutUndo();
 
         var selection = controllerGo.AddComponent<PropSelectionController>();

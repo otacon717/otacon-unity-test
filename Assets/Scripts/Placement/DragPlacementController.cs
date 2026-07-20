@@ -10,11 +10,14 @@ public class DragPlacementController : MonoBehaviour
 {
     [SerializeField] private Material ghostValidMaterial;
     [SerializeField] private Material ghostInvalidMaterial;
+    [SerializeField] private Material guideMaterial;
     [SerializeField] private float invalidHoverDistance = 15f;
+    [SerializeField] private float hoverHeight = 2.4f;
 
     private Camera mainCamera;
     private PropDefinition draggedDefinition;
     private GameObject ghost;
+    private PlacementGuide guide;
     private bool hasSurfaceHit;
     private Vector3 surfacePoint;
 
@@ -84,8 +87,33 @@ public class DragPlacementController : MonoBehaviour
         }
 
         bool valid = hasSurfaceHit && !IsPointerOverUI(eventData);
-        ghost.transform.position = hasSurfaceHit ? surfacePoint : ray.GetPoint(invalidHoverDistance);
+
+        // While a valid landing spot exists the ghost hovers above it and the
+        // guide line points at the exact 3D position where it will drop.
+        if (valid)
+        {
+            Vector3 hoverPosition = surfacePoint + Vector3.up * hoverHeight;
+            ghost.transform.position = hoverPosition;
+            Guide.Show(hoverPosition, surfacePoint);
+        }
+        else
+        {
+            ghost.transform.position = hasSurfaceHit ? surfacePoint : ray.GetPoint(invalidHoverDistance);
+            Guide.Hide();
+        }
         ApplyGhostMaterial(valid ? ghostValidMaterial : ghostInvalidMaterial);
+    }
+
+    private PlacementGuide Guide
+    {
+        get
+        {
+            if (guide == null)
+            {
+                guide = PlacementGuide.Create(guideMaterial);
+            }
+            return guide;
+        }
     }
 
     private static bool IsPointerOverUI(PointerEventData eventData)
@@ -115,5 +143,9 @@ public class DragPlacementController : MonoBehaviour
         ghost = null;
         draggedDefinition = null;
         hasSurfaceHit = false;
+        if (guide != null)
+        {
+            guide.Hide();
+        }
     }
 }
