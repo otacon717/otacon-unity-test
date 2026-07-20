@@ -49,7 +49,10 @@ public class PropSelectionController : MonoBehaviour
 
     private void HandleSceneClick(Vector2 screenPosition)
     {
-        Ray ray = mainCamera.ScreenPointToRay(screenPosition);
+        if (!PointerService.Current.TryGetPointerRay(out Ray ray))
+        {
+            ray = mainCamera.ScreenPointToRay(screenPosition);
+        }
         if (Physics.Raycast(ray, out RaycastHit hit, 500f, GameLayers.PropMask))
         {
             PlacedProp prop = hit.collider.GetComponentInParent<PlacedProp>();

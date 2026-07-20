@@ -79,7 +79,12 @@ public class DragPlacementController : MonoBehaviour
 
     private void UpdateGhost(PointerEventData eventData)
     {
-        Ray ray = mainCamera.ScreenPointToRay(eventData.position);
+        // Pointing goes through the platform abstraction (mouse ray on desktop,
+        // controller ray in XR); the event position is the desktop fallback.
+        if (!PointerService.Current.TryGetPointerRay(out Ray ray))
+        {
+            ray = mainCamera.ScreenPointToRay(eventData.position);
+        }
         hasSurfaceHit = Physics.Raycast(ray, out RaycastHit hit, 500f, GameLayers.SurfaceMask);
         if (hasSurfaceHit)
         {

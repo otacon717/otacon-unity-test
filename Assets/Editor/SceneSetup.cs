@@ -252,6 +252,7 @@ public static class SceneSetup
         EditorUtility.SetDirty(guideMat);
 
         var controllerGo = new GameObject("GameController");
+        controllerGo.AddComponent<PlatformSwitcher>();
         var drag = controllerGo.AddComponent<DragPlacementController>();
         var so = new SerializedObject(drag);
         so.FindProperty("ghostValidMaterial").objectReferenceValue = ghostValid;
