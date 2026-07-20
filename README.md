@@ -10,7 +10,7 @@
 - **拖曳置放**：從清單拖曳道具會產生半透明預覽跟隨游標；在曲面上放開即於對應位置生成道具。放開時若游標位於 UI 上或不在曲面範圍內，該次置放自動取消。
 - **置放指引線**：拖曳期間預覽物懸浮於落點上方，垂直指引線與圓形標記指出道具將掉落的準確 3D 位置。
 - **道具互動選單**：點選場景中已置放的道具，會在其旁開啟選單，可刪除該道具或關閉選單。
-- **桌面 / VR 切換架構**：互動邏輯僅依賴 `IPointerProvider` 指向抽象層；啟動時 `PlatformSwitcher` 偵測 XR 裝置狀態，自動在滑鼠射線（桌面）與控制器射線（XR）之間切換。專案已安裝 XR Plugin Management 與 OpenXR，啟用 loader 後即可建置 VR 版本。
+- **桌面 / VR 雙模式**：同一套遊戲程式碼支援桌面（Windows exe）與 Meta Quest 2 單機 VR（APK）。啟動時 `PlatformSwitcher` 偵測 XR 裝置，自動切換相機（固定相機 ↔ XR Rig）、UI（Overlay ↔ World Space 看板）、輸入模組（`InputSystemUIInputModule` ↔ `XRUIInputModule`）與指向來源（滑鼠射線 ↔ 右手控制器射線）。
 
 ## 操作方式
 
@@ -49,8 +49,40 @@ Unity.exe -batchmode -quit -projectPath <專案路徑> -executeMethod BuildScrip
 
 輸出於 `Build/Windows/UnityTest.exe`。
 
-## VR 切換設計
+## Quest 2 單機版（VR）
 
-- 所有場景指向（置放射線、點選射線）都經由 `PointerService.Current`（`IPointerProvider`）取得，桌面實作為 `MousePointerProvider`，XR 實作為 `XRRayPointerProvider`（右手控制器姿態射線）。
-- `PlatformSwitcher` 於啟動時檢查 `XRSettings.isDeviceActive`：偵測到 XR 裝置即切換為控制器射線，否則維持滑鼠。桌面版建置不啟用任何 XR loader，行為不受影響。
-- 要輸出 VR 版本：於 `Project Settings > XR Plug-in Management` 勾選 OpenXR loader 後重新建置即可，遊戲程式碼無需修改。
+### 建置
+
+1. 一次性設定：編輯器選單 `Tools > Setup > Configure Quest Build`
+   （啟用 OpenXR 的 Meta Quest Support 與 Oculus Touch Controller Profile，並套用 Android 播放器設定：IL2CPP / ARM64 / minSdk 29 / ASTC）
+2. `Tools > Build > Quest APK`，或命令列：
+
+```
+Unity.exe -batchmode -quit -projectPath <專案路徑> -executeMethod BuildScript.BuildQuest
+```
+
+輸出於 `Build/Android/UnityTest.apk`。
+
+### 安裝到 Quest 2
+
+1. Quest 需開啟開發者模式（手機 Meta Horizon App > 裝置設定 > 開發者模式）
+2. USB 連接電腦後：`adb install -r Build/Android/UnityTest.apk`（或使用 SideQuest）
+3. 頭顯內於「應用程式庫 > 未知來源」啟動 UnityTest
+
+### VR 操作
+
+| 操作 | 說明 |
+| --- | --- |
+| 右手射線指向面板 + 扳機 | 點擊「道具」展開 / 收合清單 |
+| 扳機按住清單項並拖向曲面 | 產生預覽與指引線，放開扳機即置放 |
+| 在面板上或曲面外放開 | 取消置放 |
+| 射線指向已置放道具 + 扳機 | 開啟互動選單（跟隨道具、面向頭顯） |
+| 射線點選「刪除」 | 刪除該道具 |
+
+## 桌面 / VR 切換設計
+
+- 所有場景指向（置放射線、點選射線）都經由 `PointerService.Current`（`IPointerProvider`）取得：桌面為 `MousePointerProvider`（滑鼠射線），XR 為 `XRRayPointerProvider`（右手控制器射線）。
+- `PlatformSwitcher` 於啟動時檢查 `XRSettings.isDeviceActive`，一次完成四件切換：相機（桌面固定相機 ↔ XR Origin rig）、UI 模式（Screen Space Overlay ↔ World Space）、EventSystem 輸入模組（`InputSystemUIInputModule` ↔ `XRUIInputModule`）、指向 provider。
+- UI 互動共用同一套 EventSystem 事件流：桌面由滑鼠驅動，VR 由 XRI 的 `TrackedDeviceGraphicRaycaster` + 控制器射線驅動，清單拖曳程式碼完全共用。
+- 已置放道具在 VR 模式下自動掛上 `XRSimpleInteractable`，扳機選取即開啟互動選單；桌面則以滑鼠點選判定。
+- 桌面版（Standalone）不啟用任何 XR loader，行為與純桌面版完全一致。
