@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3dc063c5e8ac88f4daddfa0f4f03b961, type: 3}
+  m_Name: PropCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::PropCatalog
+  props:
+  - {fileID: 11400000, guid: 92e4c691daf45284e99cd6cb3f9d5e2e, type: 2}
+  - {fileID: 11400000, guid: 97641a0256f416e46970231718fe97e2, type: 2}
+  - {fileID: 11400000, guid: 3bbd475632027fd469528a578f866076, type: 2}
+  - {fileID: 11400000, guid: 3fcdc172d52901c429ddc1a8b7410140, type: 2}
+  - {fileID: 11400000, guid: 4ae79601d9f42c049b31691d0666f2fd, type: 2}
+  - {fileID: 11400000, guid: 6e4d39bd46dd2f84196562c1778055cc, type: 2}
