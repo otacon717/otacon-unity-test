@@ -21,6 +21,7 @@ public static class SceneSetup
     {
         EnsureLayers();
         EnsureFolders();
+        ConvertSampleMaterialsToUrp();
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -36,6 +37,49 @@ public static class SceneSetup
         SetBuildScenes();
         AssetDatabase.SaveAssets();
         Debug.Log($"[SceneSetup] Scene generated at {ScenePath}");
+    }
+
+    /// <summary>
+    /// The XRI sample assets ship Built-in "Standard" materials which render
+    /// magenta under URP (worse: invisible on device); convert them to URP Lit.
+    /// </summary>
+    private static void ConvertSampleMaterialsToUrp()
+    {
+        if (!AssetDatabase.IsValidFolder("Assets/Samples"))
+        {
+            return;
+        }
+        Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+        int converted = 0;
+        foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { "Assets/Samples" }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null || mat.shader == null
+                || (mat.shader.name != "Standard" && mat.shader.name != "Standard (Specular setup)"))
+            {
+                continue;
+            }
+            Color color = mat.HasProperty("_Color") ? mat.color : Color.white;
+            Texture baseMap = mat.HasProperty("_MainTex") ? mat.GetTexture("_MainTex") : null;
+            float metallic = mat.HasProperty("_Metallic") ? mat.GetFloat("_Metallic") : 0f;
+            float smoothness = mat.HasProperty("_Glossiness") ? mat.GetFloat("_Glossiness") : 0.5f;
+            mat.shader = lit;
+            mat.SetColor("_BaseColor", color);
+            if (baseMap != null)
+            {
+                mat.SetTexture("_BaseMap", baseMap);
+            }
+            mat.SetFloat("_Metallic", metallic);
+            mat.SetFloat("_Smoothness", smoothness);
+            EditorUtility.SetDirty(mat);
+            converted++;
+        }
+        if (converted > 0)
+        {
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[SceneSetup] Converted {converted} sample materials to URP Lit.");
+        }
     }
 
     private static void EnsureLayers()
@@ -275,10 +319,15 @@ public static class SceneSetup
 
         foreach (Transform t in rig.GetComponentsInChildren<Transform>(true))
         {
-            if (t.name.Contains("Right") && t.name.Contains("Controller"))
+            if (rightRayOrigin == null && t.name.Contains("Right") && t.name.Contains("Controller"))
             {
                 rightRayOrigin = t;
-                break;
+            }
+            // The demo needs no locomotion; disabling it also removes the
+            // gravity provider that would drop the rig off the surface edge.
+            if (t.name == "Locomotion")
+            {
+                t.gameObject.SetActive(false);
             }
         }
 
@@ -305,6 +354,7 @@ public static class SceneSetup
         EditorUtility.SetDirty(guideMat);
 
         var controllerGo = new GameObject("GameController");
+        controllerGo.AddComponent<VRDiagnostics>();
         var switcher = controllerGo.AddComponent<PlatformSwitcher>();
         var switcherSo = new SerializedObject(switcher);
         switcherSo.FindProperty("desktopCamera").objectReferenceValue = desktopCamera;

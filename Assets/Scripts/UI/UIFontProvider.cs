@@ -16,12 +16,25 @@ public static class UIFontProvider
             {
                 cached = Font.CreateDynamicFontFromOSFont(new[]
                 {
+                    // Windows
                     "Microsoft JhengHei UI",
                     "Microsoft JhengHei",
                     "Microsoft YaHei",
                     "Segoe UI",
-                    "Arial"
+                    "Arial",
+                    // Android / Quest
+                    "Noto Sans CJK TC",
+                    "Noto Sans CJK SC",
+                    "Noto Sans CJK JP",
+                    "Noto Sans TC",
+                    "Roboto",
+                    "Droid Sans"
                 }, 24);
+                if (cached == null)
+                {
+                    Debug.LogWarning("[UIFontProvider] No OS font matched; falling back to LegacyRuntime.");
+                    cached = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                }
             }
             return cached;
         }
