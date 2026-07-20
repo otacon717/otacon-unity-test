@@ -29,6 +29,12 @@ public class PropSelectionController : MonoBehaviour
 
     private void Update()
     {
+        if (PlatformSwitcher.XRActive)
+        {
+            UpdateVR();
+            return;
+        }
+
         Mouse mouse = Mouse.current;
         if (mouse == null)
         {
@@ -52,6 +58,44 @@ public class PropSelectionController : MonoBehaviour
 
             HandleSceneClick(releasePosition);
         }
+    }
+
+    /// <summary>
+    /// VR selection: a trigger press aims the controller ray at a placed prop
+    /// to open the menu. Presses consumed by placement are skipped, and while
+    /// aiming at the open menu the press is left to the UI buttons.
+    /// </summary>
+    private void UpdateVR()
+    {
+        if (!XRControllerInput.RightTriggerDown
+            || Time.frameCount == DragPlacementController.LastVRActionFrame)
+        {
+            return;
+        }
+        var placement = GetComponent<DragPlacementController>();
+        if (placement != null && placement.PlacementActive)
+        {
+            return;
+        }
+        if (!PointerService.Current.TryGetPointerRay(out Ray ray))
+        {
+            return;
+        }
+        if (contextMenu.IsOpen && RayRectUtil.RayHitsRect(ray, (RectTransform)contextMenu.transform))
+        {
+            return; // let the menu's own buttons handle this press
+        }
+
+        if (Physics.Raycast(ray, out RaycastHit hit, 200f, GameLayers.PropMask))
+        {
+            PlacedProp prop = hit.collider.GetComponentInParent<PlacedProp>();
+            if (prop != null)
+            {
+                contextMenu.Open(prop);
+                return;
+            }
+        }
+        contextMenu.Close();
     }
 
     private void HandleSceneClick(Vector2 screenPosition)

@@ -14,12 +14,35 @@ public class DragPlacementController : MonoBehaviour
     [SerializeField] private float invalidHoverDistance = 15f;
     [SerializeField] private float hoverHeight = 2.4f;
 
+    /// <summary>Frame in which a VR placement action consumed the trigger press.</summary>
+    public static int LastVRActionFrame { get; private set; } = -1;
+
     private Camera mainCamera;
     private PropDefinition draggedDefinition;
     private GameObject ghost;
     private PlacementGuide guide;
     private bool hasSurfaceHit;
     private Vector3 surfacePoint;
+    private bool vrPlacementActive;
+    private RectTransform uiBoardRect;
+    private bool uiBoardResolved;
+
+    public bool PlacementActive => vrPlacementActive;
+
+    private RectTransform UIBoardRect
+    {
+        get
+        {
+            if (!uiBoardResolved)
+            {
+                uiBoardResolved = true;
+                var panel = FindFirstObjectByType<PropDropdownPanel>(FindObjectsInactive.Include);
+                Canvas canvas = panel != null ? panel.GetComponentInParent<Canvas>(true) : null;
+                uiBoardRect = canvas != null ? (RectTransform)canvas.transform : null;
+            }
+            return uiBoardRect;
+        }
+    }
 
     private Camera Cam
     {
@@ -38,6 +61,7 @@ public class DragPlacementController : MonoBehaviour
         PropListItem.PropDragStarted += HandleDragStarted;
         PropListItem.PropDragMoved += HandleDragMoved;
         PropListItem.PropDragEnded += HandleDragEnded;
+        PropListItem.PropClicked += HandlePropClicked;
     }
 
     private void OnDisable()
@@ -45,19 +69,104 @@ public class DragPlacementController : MonoBehaviour
         PropListItem.PropDragStarted -= HandleDragStarted;
         PropListItem.PropDragMoved -= HandleDragMoved;
         PropListItem.PropDragEnded -= HandleDragEnded;
+        PropListItem.PropClicked -= HandlePropClicked;
+    }
+
+    /// <summary>
+    /// VR placement: click a list entry to spawn a ghost that follows the
+    /// controller ray; the next trigger press drops it (or cancels when there
+    /// is no valid landing spot). Holding a drag with the trigger is clumsy in
+    /// VR, so the desktop drag flow is bypassed there.
+    /// </summary>
+    private void HandlePropClicked(PropDefinition definition)
+    {
+        if (!PlatformSwitcher.XRActive)
+        {
+            return;
+        }
+        CancelDrag();
+        draggedDefinition = definition;
+        ghost = CreateGhost(definition);
+        vrPlacementActive = true;
+        LastVRActionFrame = Time.frameCount;
+    }
+
+    private void Update()
+    {
+        if (!vrPlacementActive || ghost == null)
+        {
+            return;
+        }
+
+        UpdateGhostFromProviderRay();
+
+        if (XRControllerInput.RightTriggerDown)
+        {
+            LastVRActionFrame = Time.frameCount;
+            if (hasSurfaceHit)
+            {
+                GameObject placed = Instantiate(draggedDefinition.Prefab, surfacePoint, Quaternion.identity);
+                placed.name = draggedDefinition.name;
+            }
+            CancelDrag();
+        }
+    }
+
+    private void UpdateGhostFromProviderRay()
+    {
+        if (!PointerService.Current.TryGetPointerRay(out Ray ray))
+        {
+            return;
+        }
+        // Aiming at the UI board must not place behind it.
+        if (RayRectUtil.RayHitsRect(ray, UIBoardRect))
+        {
+            hasSurfaceHit = false;
+        }
+        else
+        {
+            hasSurfaceHit = Physics.Raycast(ray, out RaycastHit hit, 500f, GameLayers.SurfaceMask);
+            if (hasSurfaceHit)
+            {
+                surfacePoint = hit.point;
+            }
+        }
+
+        if (hasSurfaceHit)
+        {
+            Vector3 hoverPosition = surfacePoint + Vector3.up * hoverHeight;
+            ghost.transform.position = hoverPosition;
+            Guide.Show(hoverPosition, surfacePoint);
+        }
+        else
+        {
+            ghost.transform.position = ray.GetPoint(invalidHoverDistance);
+            Guide.Hide();
+        }
+        ApplyGhostMaterial(hasSurfaceHit ? ghostValidMaterial : ghostInvalidMaterial);
     }
 
     private void HandleDragStarted(PropDefinition definition, PointerEventData eventData)
     {
+        if (PlatformSwitcher.XRActive)
+        {
+            return;
+        }
         CancelDrag();
         draggedDefinition = definition;
-        ghost = Instantiate(definition.Prefab);
-        ghost.name = $"{definition.name}_Ghost";
-        foreach (Collider collider in ghost.GetComponentsInChildren<Collider>())
+        ghost = CreateGhost(definition);
+        UpdateGhost(eventData);
+    }
+
+    private GameObject CreateGhost(PropDefinition definition)
+    {
+        GameObject newGhost = Instantiate(definition.Prefab);
+        newGhost.name = $"{definition.name}_Ghost";
+        foreach (Collider collider in newGhost.GetComponentsInChildren<Collider>())
         {
             collider.enabled = false;
         }
-        UpdateGhost(eventData);
+        return newGhost;
     }
 
     private void HandleDragMoved(PointerEventData eventData)
@@ -155,6 +264,7 @@ public class DragPlacementController : MonoBehaviour
         ghost = null;
         draggedDefinition = null;
         hasSurfaceHit = false;
+        vrPlacementActive = false;
         if (guide != null)
         {
             guide.Hide();

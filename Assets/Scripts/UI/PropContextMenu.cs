@@ -98,7 +98,13 @@ public class PropContextMenu : MonoBehaviour
 
     private void UpdateWorldSpacePosition()
     {
-        Vector3 position = target.transform.position + Vector3.up * worldAnchorHeight;
+        // Float beside the prop (as seen from the camera) so the menu neither
+        // covers the prop nor overlaps its collider for ray clicks.
+        Vector3 toCamera = Cam.transform.position - target.transform.position;
+        toCamera.y = 0f;
+        toCamera.Normalize();
+        Vector3 side = Vector3.Cross(toCamera, Vector3.up);
+        Vector3 position = target.transform.position + Vector3.up * 1.7f + side * 1.1f;
         transform.position = position;
         // Canvas front faces -Z, so point +Z away from the camera.
         transform.rotation = Quaternion.LookRotation(position - Cam.transform.position);

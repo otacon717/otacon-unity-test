@@ -6,11 +6,13 @@ using UnityEngine.EventSystems;
 /// One entry of the prop dropdown list. Raises static drag events so the
 /// placement system can react without the UI knowing about it.
 /// </summary>
-public class PropListItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+public class PropListItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler,
+    IPointerClickHandler
 {
     public static event Action<PropDefinition, PointerEventData> PropDragStarted;
     public static event Action<PointerEventData> PropDragMoved;
     public static event Action<PointerEventData> PropDragEnded;
+    public static event Action<PropDefinition> PropClicked;
 
     private PropDefinition definition;
 
@@ -35,5 +37,13 @@ public class PropListItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEnd
     public void OnEndDrag(PointerEventData eventData)
     {
         PropDragEnded?.Invoke(eventData);
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (definition != null)
+        {
+            PropClicked?.Invoke(definition);
+        }
     }
 }
