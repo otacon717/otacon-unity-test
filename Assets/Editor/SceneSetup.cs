@@ -5,6 +5,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 /// <summary>
 /// Generates the main scene from code so the whole setup is reproducible
@@ -24,11 +25,12 @@ public static class SceneSetup
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         CreateLighting();
-        CreateCamera();
+        Camera desktopCamera = CreateCamera();
         CreateSurface();
         GameObject canvas = CreateUI();
-        PropContextMenu contextMenu = CreateContextMenu(canvas);
-        CreateGameController(contextMenu);
+        PropContextMenu contextMenu = CreateContextMenu();
+        GameObject xrRig = CreateXRRig(out Transform rightRayOrigin);
+        CreateGameController(contextMenu, desktopCamera, canvas, xrRig, rightRayOrigin);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         SetBuildScenes();
@@ -80,7 +82,7 @@ public static class SceneSetup
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Skybox;
     }
 
-    private static void CreateCamera()
+    private static Camera CreateCamera()
     {
         var camGo = new GameObject("Main Camera");
         camGo.tag = "MainCamera";
@@ -89,6 +91,7 @@ public static class SceneSetup
         cam.fieldOfView = 55f;
         camGo.transform.position = new Vector3(0f, 17f, -17f);
         camGo.transform.rotation = Quaternion.Euler(47f, 0f, 0f);
+        return cam;
     }
 
     private static void CreateSurface()
@@ -123,11 +126,15 @@ public static class SceneSetup
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
         canvasGo.AddComponent<GraphicRaycaster>();
+        // Lets XR ray interactors hit this canvas when it is world-space in VR.
+        canvasGo.AddComponent<TrackedDeviceGraphicRaycaster>();
         canvasGo.AddComponent<CanvasFontApplier>();
 
         var eventSystemGo = new GameObject("EventSystem");
         eventSystemGo.AddComponent<EventSystem>();
         eventSystemGo.AddComponent<InputSystemUIInputModule>();
+        // XR UI module is enabled by PlatformSwitcher only when a headset is active.
+        eventSystemGo.AddComponent<XRUIInputModule>().enabled = false;
 
         // Right-hand prop dropdown panel.
         var panelGo = CreateUIObject("PropDropdownPanel", canvasGo.transform);
@@ -184,8 +191,22 @@ public static class SceneSetup
         return canvasGo;
     }
 
-    private static PropContextMenu CreateContextMenu(GameObject canvasGo)
+    private static PropContextMenu CreateContextMenu()
     {
+        // The context menu lives on its own canvas so PlatformSwitcher can flip
+        // just this canvas to world-space in VR while the desktop math stays put.
+        var canvasGo = CreateUIObject("ContextMenuCanvas", null);
+        var canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 10;
+        var scaler = canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+        canvasGo.AddComponent<GraphicRaycaster>();
+        canvasGo.AddComponent<TrackedDeviceGraphicRaycaster>();
+        canvasGo.AddComponent<CanvasFontApplier>();
+
         var menuGo = CreateUIObject("PropContextMenu", canvasGo.transform);
         var menuRect = (RectTransform)menuGo.transform;
         menuRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -235,7 +256,39 @@ public static class SceneSetup
         return button;
     }
 
-    private static void CreateGameController(PropContextMenu contextMenu)
+    private static GameObject CreateXRRig(out Transform rightRayOrigin)
+    {
+        rightRayOrigin = null;
+        string[] guids = AssetDatabase.FindAssets("\"XR Origin (XR Rig)\" t:prefab");
+        if (guids.Length == 0)
+        {
+            Debug.LogWarning("[SceneSetup] XR Origin prefab not found; skipping XR rig.");
+            return null;
+        }
+
+        string path = AssetDatabase.GUIDToAssetPath(guids[0]);
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        var rig = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        rig.name = "XR Origin (XR Rig)";
+        rig.transform.position = new Vector3(0f, 0.4f, -13.5f);
+        rig.transform.rotation = Quaternion.identity;
+
+        foreach (Transform t in rig.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name.Contains("Right") && t.name.Contains("Controller"))
+            {
+                rightRayOrigin = t;
+                break;
+            }
+        }
+
+        // Inactive by default; PlatformSwitcher activates it when a headset is present.
+        rig.SetActive(false);
+        return rig;
+    }
+
+    private static void CreateGameController(PropContextMenu contextMenu, Camera desktopCamera,
+        GameObject mainCanvasGo, GameObject xrRig, Transform rightRayOrigin)
     {
         Material ghostValid = CreateTransparentMaterial(
             "Assets/Materials/GhostValid.mat", new Color(0.35f, 1f, 0.45f, 0.45f));
@@ -252,7 +305,15 @@ public static class SceneSetup
         EditorUtility.SetDirty(guideMat);
 
         var controllerGo = new GameObject("GameController");
-        controllerGo.AddComponent<PlatformSwitcher>();
+        var switcher = controllerGo.AddComponent<PlatformSwitcher>();
+        var switcherSo = new SerializedObject(switcher);
+        switcherSo.FindProperty("desktopCamera").objectReferenceValue = desktopCamera;
+        switcherSo.FindProperty("xrRig").objectReferenceValue = xrRig;
+        switcherSo.FindProperty("mainCanvas").objectReferenceValue = mainCanvasGo.GetComponent<Canvas>();
+        switcherSo.FindProperty("menuCanvas").objectReferenceValue = contextMenu.GetComponentInParent<Canvas>(true);
+        switcherSo.FindProperty("rightRayOrigin").objectReferenceValue = rightRayOrigin;
+        switcherSo.ApplyModifiedPropertiesWithoutUndo();
+
         var drag = controllerGo.AddComponent<DragPlacementController>();
         var so = new SerializedObject(drag);
         so.FindProperty("ghostValidMaterial").objectReferenceValue = ghostValid;

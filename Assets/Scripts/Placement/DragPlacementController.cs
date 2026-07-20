@@ -21,9 +21,16 @@ public class DragPlacementController : MonoBehaviour
     private bool hasSurfaceHit;
     private Vector3 surfacePoint;
 
-    private void Awake()
+    private Camera Cam
     {
-        mainCamera = Camera.main;
+        get
+        {
+            if (mainCamera == null)
+            {
+                mainCamera = Camera.main;
+            }
+            return mainCamera;
+        }
     }
 
     private void OnEnable()
@@ -83,7 +90,7 @@ public class DragPlacementController : MonoBehaviour
         // controller ray in XR); the event position is the desktop fallback.
         if (!PointerService.Current.TryGetPointerRay(out Ray ray))
         {
-            ray = mainCamera.ScreenPointToRay(eventData.position);
+            ray = Cam.ScreenPointToRay(eventData.position);
         }
         hasSurfaceHit = Physics.Raycast(ray, out RaycastHit hit, 500f, GameLayers.SurfaceMask);
         if (hasSurfaceHit)

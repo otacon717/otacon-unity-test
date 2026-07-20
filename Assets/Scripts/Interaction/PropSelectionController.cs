@@ -15,9 +15,16 @@ public class PropSelectionController : MonoBehaviour
     private Vector2 pressPosition;
     private bool pressStartedOverUI;
 
-    private void Awake()
+    private Camera Cam
     {
-        mainCamera = Camera.main;
+        get
+        {
+            if (mainCamera == null)
+            {
+                mainCamera = Camera.main;
+            }
+            return mainCamera;
+        }
     }
 
     private void Update()
@@ -51,7 +58,7 @@ public class PropSelectionController : MonoBehaviour
     {
         if (!PointerService.Current.TryGetPointerRay(out Ray ray))
         {
-            ray = mainCamera.ScreenPointToRay(screenPosition);
+            ray = Cam.ScreenPointToRay(screenPosition);
         }
         if (Physics.Raycast(ray, out RaycastHit hit, 500f, GameLayers.PropMask))
         {
