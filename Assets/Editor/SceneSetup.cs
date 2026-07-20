@@ -27,6 +27,7 @@ public static class SceneSetup
         CreateCamera();
         CreateSurface();
         CreateUI();
+        CreateGameController();
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         SetBuildScenes();
@@ -178,6 +179,42 @@ public static class SceneSetup
         hintRect.sizeDelta = new Vector2(760f, 40f);
         Text hint = CreateText(hintGo.transform, "從右側「道具」清單拖曳道具到曲面上放置；點選已放置的道具可開啟互動選單", 20, TextAnchor.MiddleLeft);
         hint.color = new Color(1f, 1f, 1f, 0.75f);
+    }
+
+    private static void CreateGameController()
+    {
+        Material ghostValid = CreateTransparentMaterial(
+            "Assets/Materials/GhostValid.mat", new Color(0.35f, 1f, 0.45f, 0.45f));
+        Material ghostInvalid = CreateTransparentMaterial(
+            "Assets/Materials/GhostInvalid.mat", new Color(1f, 0.32f, 0.32f, 0.45f));
+
+        var controllerGo = new GameObject("GameController");
+        var drag = controllerGo.AddComponent<DragPlacementController>();
+        var so = new SerializedObject(drag);
+        so.FindProperty("ghostValidMaterial").objectReferenceValue = ghostValid;
+        so.FindProperty("ghostInvalidMaterial").objectReferenceValue = ghostInvalid;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static Material CreateTransparentMaterial(string path, Color color)
+    {
+        Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (mat == null)
+        {
+            mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            AssetDatabase.CreateAsset(mat, path);
+        }
+        mat.SetFloat("_Surface", 1f);
+        mat.SetFloat("_Blend", 0f);
+        mat.SetOverrideTag("RenderType", "Transparent");
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetInt("_ZWrite", 0);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        mat.color = color;
+        EditorUtility.SetDirty(mat);
+        return mat;
     }
 
     private static GameObject CreateUIObject(string name, Transform parent)
