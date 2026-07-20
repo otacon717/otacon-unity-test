@@ -1,7 +1,10 @@
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
 /// Generates the main scene from code so the whole setup is reproducible
@@ -23,6 +26,7 @@ public static class SceneSetup
         CreateLighting();
         CreateCamera();
         CreateSurface();
+        CreateUI();
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         SetBuildScenes();
@@ -104,6 +108,107 @@ public static class SceneSetup
         // lightweight; only the component configuration is serialized here.
         surfaceGo.AddComponent<CurvedSurface>();
         surfaceGo.GetComponent<MeshRenderer>().sharedMaterial = mat;
+    }
+
+    private static void CreateUI()
+    {
+        // Canvas scaled with screen size so the layout adapts to any aspect ratio.
+        var canvasGo = CreateUIObject("UICanvas", null);
+        var canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        var scaler = canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+        canvasGo.AddComponent<GraphicRaycaster>();
+        canvasGo.AddComponent<CanvasFontApplier>();
+
+        var eventSystemGo = new GameObject("EventSystem");
+        eventSystemGo.AddComponent<EventSystem>();
+        eventSystemGo.AddComponent<InputSystemUIInputModule>();
+
+        // Right-hand prop dropdown panel.
+        var panelGo = CreateUIObject("PropDropdownPanel", canvasGo.transform);
+        var panelRect = (RectTransform)panelGo.transform;
+        panelRect.anchorMin = new Vector2(1f, 1f);
+        panelRect.anchorMax = new Vector2(1f, 1f);
+        panelRect.pivot = new Vector2(1f, 1f);
+        panelRect.anchoredPosition = new Vector2(-24f, -24f);
+        panelRect.sizeDelta = new Vector2(280f, 0f);
+        var panelLayout = panelGo.AddComponent<VerticalLayoutGroup>();
+        panelLayout.childControlWidth = true;
+        panelLayout.childControlHeight = true;
+        panelLayout.childForceExpandHeight = false;
+        panelLayout.spacing = 4f;
+        panelGo.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        var headerGo = CreateUIObject("Header", panelGo.transform);
+        var headerImage = headerGo.AddComponent<Image>();
+        headerImage.color = new Color(0.16f, 0.2f, 0.26f, 0.96f);
+        var headerButton = headerGo.AddComponent<Button>();
+        headerButton.targetGraphic = headerImage;
+        headerGo.AddComponent<LayoutElement>().preferredHeight = 56f;
+        Text headerLabel = CreateText(headerGo.transform, "道具 ▼", 26, TextAnchor.MiddleCenter);
+
+        var contentGo = CreateUIObject("Content", panelGo.transform);
+        var contentLayout = contentGo.AddComponent<VerticalLayoutGroup>();
+        contentLayout.childControlWidth = true;
+        contentLayout.childControlHeight = true;
+        contentLayout.childForceExpandHeight = false;
+        contentLayout.spacing = 2f;
+        contentLayout.padding = new RectOffset(4, 4, 4, 4);
+        contentGo.AddComponent<Image>().color = new Color(0.1f, 0.12f, 0.15f, 0.9f);
+
+        var panel = panelGo.AddComponent<PropDropdownPanel>();
+        var so = new SerializedObject(panel);
+        so.FindProperty("catalog").objectReferenceValue =
+            AssetDatabase.LoadAssetAtPath<PropCatalog>(PropAssetGenerator.CatalogPath);
+        so.FindProperty("headerButton").objectReferenceValue = headerButton;
+        so.FindProperty("headerLabel").objectReferenceValue = headerLabel;
+        so.FindProperty("contentRoot").objectReferenceValue = (RectTransform)contentGo.transform;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        // Small usage hint, bottom-left.
+        var hintGo = CreateUIObject("HintLabel", canvasGo.transform);
+        var hintRect = (RectTransform)hintGo.transform;
+        hintRect.anchorMin = new Vector2(0f, 0f);
+        hintRect.anchorMax = new Vector2(0f, 0f);
+        hintRect.pivot = new Vector2(0f, 0f);
+        hintRect.anchoredPosition = new Vector2(24f, 18f);
+        hintRect.sizeDelta = new Vector2(760f, 40f);
+        Text hint = CreateText(hintGo.transform, "從右側「道具」清單拖曳道具到曲面上放置；點選已放置的道具可開啟互動選單", 20, TextAnchor.MiddleLeft);
+        hint.color = new Color(1f, 1f, 1f, 0.75f);
+    }
+
+    private static GameObject CreateUIObject(string name, Transform parent)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.layer = LayerMask.NameToLayer("UI");
+        if (parent != null)
+        {
+            go.transform.SetParent(parent, false);
+        }
+        return go;
+    }
+
+    private static Text CreateText(Transform parent, string content, int size, TextAnchor anchor)
+    {
+        GameObject go = CreateUIObject("Label", parent);
+        var rect = (RectTransform)go.transform;
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = new Vector2(10f, 0f);
+        rect.offsetMax = new Vector2(-10f, 0f);
+        var text = go.AddComponent<Text>();
+        // Placeholder font at edit time; UIFontProvider swaps to an OS font
+        // with CJK coverage at runtime.
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.text = content;
+        text.fontSize = size;
+        text.alignment = anchor;
+        text.color = Color.white;
+        text.raycastTarget = false;
+        return text;
     }
 
     private static void SetBuildScenes()
