@@ -26,8 +26,9 @@ public static class SceneSetup
         CreateLighting();
         CreateCamera();
         CreateSurface();
-        CreateUI();
-        CreateGameController();
+        GameObject canvas = CreateUI();
+        PropContextMenu contextMenu = CreateContextMenu(canvas);
+        CreateGameController(contextMenu);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         SetBuildScenes();
@@ -111,7 +112,7 @@ public static class SceneSetup
         surfaceGo.GetComponent<MeshRenderer>().sharedMaterial = mat;
     }
 
-    private static void CreateUI()
+    private static GameObject CreateUI()
     {
         // Canvas scaled with screen size so the layout adapts to any aspect ratio.
         var canvasGo = CreateUIObject("UICanvas", null);
@@ -179,9 +180,62 @@ public static class SceneSetup
         hintRect.sizeDelta = new Vector2(760f, 40f);
         Text hint = CreateText(hintGo.transform, "從右側「道具」清單拖曳道具到曲面上放置；點選已放置的道具可開啟互動選單", 20, TextAnchor.MiddleLeft);
         hint.color = new Color(1f, 1f, 1f, 0.75f);
+
+        return canvasGo;
     }
 
-    private static void CreateGameController()
+    private static PropContextMenu CreateContextMenu(GameObject canvasGo)
+    {
+        var menuGo = CreateUIObject("PropContextMenu", canvasGo.transform);
+        var menuRect = (RectTransform)menuGo.transform;
+        menuRect.anchorMin = new Vector2(0.5f, 0.5f);
+        menuRect.anchorMax = new Vector2(0.5f, 0.5f);
+        menuRect.pivot = new Vector2(0f, 0.5f);
+        menuRect.sizeDelta = new Vector2(210f, 0f);
+
+        menuGo.AddComponent<Image>().color = new Color(0.12f, 0.14f, 0.18f, 0.96f);
+        var layout = menuGo.AddComponent<VerticalLayoutGroup>();
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandHeight = false;
+        layout.spacing = 6f;
+        layout.padding = new RectOffset(10, 10, 10, 10);
+        menuGo.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        var nameGo = CreateUIObject("NameLabel", menuGo.transform);
+        nameGo.AddComponent<LayoutElement>().preferredHeight = 34f;
+        Text nameLabel = CreateText(nameGo.transform, "道具", 22, TextAnchor.MiddleCenter);
+
+        Button deleteButton = CreateMenuButton(menuGo.transform, "DeleteButton", "刪除",
+            new Color(0.75f, 0.25f, 0.25f, 1f), 44f);
+        Button closeButton = CreateMenuButton(menuGo.transform, "CloseButton", "關閉",
+            new Color(0.3f, 0.33f, 0.38f, 1f), 36f);
+
+        var menu = menuGo.AddComponent<PropContextMenu>();
+        var so = new SerializedObject(menu);
+        so.FindProperty("canvasRect").objectReferenceValue = (RectTransform)canvasGo.transform;
+        so.FindProperty("nameLabel").objectReferenceValue = nameLabel;
+        so.FindProperty("deleteButton").objectReferenceValue = deleteButton;
+        so.FindProperty("closeButton").objectReferenceValue = closeButton;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        return menu;
+    }
+
+    private static Button CreateMenuButton(Transform parent, string name, string label,
+        Color background, float height)
+    {
+        GameObject buttonGo = CreateUIObject(name, parent);
+        var image = buttonGo.AddComponent<Image>();
+        image.color = background;
+        var button = buttonGo.AddComponent<Button>();
+        button.targetGraphic = image;
+        buttonGo.AddComponent<LayoutElement>().preferredHeight = height;
+        CreateText(buttonGo.transform, label, 22, TextAnchor.MiddleCenter);
+        return button;
+    }
+
+    private static void CreateGameController(PropContextMenu contextMenu)
     {
         Material ghostValid = CreateTransparentMaterial(
             "Assets/Materials/GhostValid.mat", new Color(0.35f, 1f, 0.45f, 0.45f));
@@ -194,6 +248,11 @@ public static class SceneSetup
         so.FindProperty("ghostValidMaterial").objectReferenceValue = ghostValid;
         so.FindProperty("ghostInvalidMaterial").objectReferenceValue = ghostInvalid;
         so.ApplyModifiedPropertiesWithoutUndo();
+
+        var selection = controllerGo.AddComponent<PropSelectionController>();
+        var selectionSo = new SerializedObject(selection);
+        selectionSo.FindProperty("contextMenu").objectReferenceValue = contextMenu;
+        selectionSo.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static Material CreateTransparentMaterial(string path, Color color)
