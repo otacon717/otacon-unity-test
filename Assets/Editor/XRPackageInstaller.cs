@@ -17,6 +17,12 @@ public static class XRPackageInstaller
         AddPackage("com.unity.xr.openxr");
     }
 
+    [MenuItem("Tools/Setup/Install XR Interaction Toolkit")]
+    public static void InstallInteractionToolkit()
+    {
+        AddPackage("com.unity.xr.interaction.toolkit");
+    }
+
     private static void AddPackage(string id)
     {
         AddRequest request = Client.Add(id);
